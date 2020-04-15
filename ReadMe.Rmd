@@ -1,0 +1,852 @@
+---
+title: "EpiMod: Pertussis"
+author: "Beccuti Marco, Castagno Paolo, Pernice Simone"
+output: 
+  md_document:
+    toc: true
+    toc_depth: 3
+header-includes: 
+ \usepackage{float}
+ \usepackage{url}
+ \usepackage{booktabs}
+ \usepackage{multirow}
+ \newcommand{\Nat}{\mathbb{N}}
+ \newcommand{\Real}{\mathbb{R}}
+ \newcommand{\cd}{\mathit{cd}}  
+ \newcommand{\mk}{\mathbf{m}}   
+ \newcommand{\Dom}{\mathit{Dom}} 
+ \newcommand{\Tuple}[1]{\ensuremath{\langle 1\rangle}}
+ \newcommand{\In}{I}
+ \newcommand{\Out}{O} 
+ \newcommand{\rate}{\varphi} 
+ \newcommand{\Gard}{\Theta}
+ \newcommand{\Class}{\mathcal{C}}
+ \renewcommand {\Pr} {\mathbb{P}}
+ \newcommand {\Es} {{\mathbb E}}
+ \newcommand{\ABm}{\ensuremath{\mathcal{A}}} 
+ \newcommand{\RBm}{\ensuremath{\mathcal{R}}} 
+ \newcommand{\theLanguage}{\ensuremath{\mathcal L}}
+ \newcommand{\tuple}[1]{\ensuremath{\langle 1 \rangle}}
+ \newcommand{\bag}[1]{\ensuremath{Bag[ 1 ]}}
+ \newcommand{\Inputp}{^{\bullet} \mathbf{t} }
+ \newcommand{\Outputp}{  \mathbf{t} ^\bullet}
+ \newcommand{\Inputpprim}{^{\bullet} \mathbf{t'} }
+ \newcommand{\mm}{\ensuremath{x}} 
+ \floatplacement{figure}{H}
+ \usepackage{caption}
+ \captionsetup[table]{skip=10pt}
+ 
+bibliography: biblio.bib  
+
+vignette: >
+  %\VignetteIndexEntry{my-vignette}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+ 
+)
+```
+
+	 
+
+# Introduction
+
+In this document we describe how to use the R library *epimod*. In details, *epimod* implements a new general modeling framework  to  study  epidemiological  systems, whose novelties and strengths are: 
+
+1. the use of a graphical formalism to simplify the model creation phase; 
+2. the automatic generation of the deterministic and stochastic process underlying the system under study;
+3. the implementation of an R package providing  a friendly interface  to access the analysis techniques implemented in the framework;
+4. a high level of portability and reproducibility granted by the containerization [@docker] of all analysis techniques implemented in the framework;
+5. a well-defined schema and related infrastructure to allow users to easily integrate their own analysis workflow in the framework. 
+
+The effectiveness  of  this  framework is showed through two case studies, the wellknown and simple SIR model, and much more complex model related to the pertussis epidemiology in Italy. 
+
+# How to start 
+
+Install *epimod*:
+```{r,eval=F}
+install.packages("devtools")
+library(devtools)
+install_github("qBioTurin/epimod", dependencies=TRUE)
+``` 
+```{r}
+library(epimod)
+``` 
+Then, the following function must be used to download all the docker images used by *epimod*:
+
+```{r,eval=F}
+downloadContainers()
+``` 
+
+## Something to know
+
+All the *epimod* functions print the following information:
+
+- *Docker ID*, that is the CONTAINER ID which is executed by the functon;
+- *Docker exit status*, if 0 then the execution completed with success, otherwise an error log file is saved in the working directory.
+
+
+# Cases of study
+### Pertussis Model
+
+We now describe how the framework functions can be combined to obtain an analysis workflow for the Pertussis model introduced in the main paper: *A computational framework for modeling andstudying pertussis epidemiology and vaccination*. 
+
+
+```{r , echo = FALSE, message=FALSE, fig.align='center', fig.cap='\\label{fig:Pertussis_PN} Petri Net representation of the Pertussis model.',  fig.height = 4, fig.width = 6, fig.pos='H'}
+
+knitr::include_graphics("./Figures/RetaSivaxcpp.png")
+```
+
+We first introduce all the functions, the constants, and the numerical values associated with the general transitions rate (the black boxes in figure \ref{fig:Pertussis_PN}). Then, we show the proposed framework and how it can be successfully used to study and analyze pertussis infection and the relative vaccination cycle in Italy.
+All the details regarding the function associated to the general transition and the parameters exploited in the simulations are reported in the *ReadMe.pdf* into the folder **pdf**.
+
+
+### Model Generation
+
+The starting point is the derivation from the Pertussis model the corresponding underlying stochastic and deterministic processes by using the function *model_generation*. Then the derived deterministic process is represented by a system of 179 ODEs, while the derived stochastic process is characterized by 1965 possible events. Let us observe that the functions associated with the general transitions (the black boxes in figure \ref{fig:Pertussis_PN}) are implemented in the file *transitions.cpp*, which is passed as input parameter of the function.
+
+```{r, eval=FALSE}
+
+generation <- model_generation(net_fname = "./Net/Pertussis.PNPRO",
+                               functions_fname = "./Cpp/transitions.cpp")
+```
+
+
+### Sensitivity analysis {#subsec:PRCCpertussis}
+
+Since the model is characterized by 15 unknown parameters, three of the represent the probabilities of having  (i) the *susceptible infection success*, i.e., the infection of a susceptible individual due to a contact with an infected individual, namely  *prob_infectionS*, (ii) the *resistant infection success*, i.e., the infection of a  vaccinated or recovered individual  with the minimum resistance level due to a contact with an infected individual, namely  *prob_infectionR_l1*, and finally (iii) *the natural boosts*, i.e., the restoring of the resistance level to the maximum when a person with resistance level different from the minimum level  comes into contact  with an infected individual, namely *prob_boost*. The remaining 12 unknown parameters are the initial marking of the susceptible and recovered places.
+We can apply the function *sensitivity_analysis()* on the deterministic process previously generated and considering the data of the period from 1974 to 1994 as reference targets, in order to identify which parameters are most sensitive w.r.t. the counts of infects. Therefore, the following function input parameters are passed:
+                               
+1. **solver_fname**: *Pertussis.solver*;
+2. **n_config**: the model is run *2^14*;
+3. **f_time**: since all the rates were calculated daily and we want to  simulate 21 years, then the *f_time* has to be *365\*21*;
+4. **s_time**: the step time is set to 1 year,  *365* days;
+5. **parameters_fname**: in *Functions_list.csv* the parameters which have to vary and also the parameters that have to be passed to the general functions stored in *transition.cpp* are reported.
+```{r, echo= FALSE,message=FALSE}
+a<-read.csv("./input/Functions_list.csv", header=FALSE,sep=";")
+colnames(a) <- c("Tag","Name","Function","Parameter1")
+a
+```
+6. **functions_fname**: in *Functions.R* the functions reported in the  third column of *Functions_list.csv* are implemented. For instance, the function associated to the generation of the three probabilities is defined as follows:
+```{r, eval=FALSE}
+# if x is null then it means that we have to sample the values by
+# exploiting the uniform distribution between 0 and 0.25. Let us note
+# that three values corresponding to the three probabilities are
+# generated since the uniform intervals are all identical to [0,0.25].
+# Differtly when x is not null, then it means the we are using the
+# optimization algorithm and the prob. values are already sampled,
+# for this reason we take just the first three values of x (the vector
+# with size equals to the number of parameter which are varing),
+# 0 is given to the probability of vaccination failure that will be used
+# in model_analyis.
+# The three values obtained are automatically saved in a file called as
+# the corresponding name in the Function_list.csv (second column),
+# and then read and exploited by the functions in transitions.cpp .
+
+probability <- function(file, x = NULL)
+{
+	load(file)
+    if( is.null(x) ){
+        x <- runif(n = length(probabilities), min=0, max=0.25)
+        x[length(x)] = 0
+    }
+    else{
+        x <- c(x[c(1:3)],0)
+    }
+    return(matrix(x, ncol = 1))
+}
+
+```
+Let us note that the probabilities values generated are used by the functions modeling all the transitions representing the contact between two individuals (implemented in *transitions.cpp*). For this reason the tag associated with this parameter is *g* and not *p* (where *p* has to be used when a transition rate or a single place is under analysis). Similarly, the function *initial_marking* characterizing the generation of the unknown initial markings of certain places is defined in order to satisfy the following constraints:
+\begin{align} \label{eq:constr}
+&S\_a1 + R\_a1\_nv\_l4 = 866703 \nonumber \\ 
+&S\_a2 + R\_a2\_nv\_l1+ R\_a2\_nv\_l2 +
+R\_a2\_nv\_l3 + R\_a2\_nv\_l4    = 15685693 \\
+&S\_a3 + R\_a3\_nv\_l1+ R\_a3\_nv\_l2 +
+R\_a3\_nv\_l3 + R\_a3\_nv\_l4   = 37837299 \nonumber
+\end{align}
+Hence, the values estimated during the sensitivity analysis and model calibration steps are the proportions of the total number in each age class. For instance, the values .4 and .8 might be associated to $S\_a1\ \text{and}\ R\_a1\_nv\_l4$, meaning that the `r .4/(.4+.8)`\% (i.e., .4/(.4+.8) ) of the total 866703 individuals are in S_a1 and the remaining are in R_a1_nv_l4. For more details regarding the constraints in eqs.\ref{eq:constr} and the functions associated to the general transitions (in specific how the probabilities are used), see Sec. [General transitions](#Sec:generalTr), eq. \ref{FN:contact}. 
+7. **target_value_fname**:  since we are interested to calculate the PRCCs over the time w.r.t. the count of infects per year, the *Select.R* file provides the function to obtain the vector storing the total number of infections per year.
+```{r, linewidth = 80 }
+Select<-function(output)
+{
+  ynames <- names(output)
+  col_names <- "(InfectCount_a){1}[0-9]{1}"
+  col_idxs <- c( which(ynames %in% grep(col_names, ynames, value=T)) )
+  # Reshape the vector to a row vector
+  ret <- rowSums(output[,col_idxs])
+  return(as.data.frame(ret))
+}
+```
+8. **reference_data**: the Pertussis surveillance data from the 1974;
+```{r, echo= FALSE,message=FALSE}
+a<-read.csv("./input/reference_data.csv", header=FALSE,sep=" ")
+row.names(a) <- c("Infects")
+colnames(a) <- paste0(1974:1994)
+a[,1:7]
+```
+9. **distance_measure_fname**: the squared error estimator via trajectory matching on the number of cases per year is implemented through the *msqd()* function.
+```{r, linewidth = 80 }
+msqd<-function(reference, output)
+{
+    ynames <- names(output)
+    # InfectCount is the place that counts how many new infects occurs during the whole
+    # period, for this reason we have to do the difference to obtain the number of cases
+    # per year. Given this difference the squared error is calculated w.r.t. the reference
+    # data.
+    col_names <- "(InfectCount_a){1}[0-9]{1}"
+    col_idxs <- c( which(ynames %in% grep(col_names, ynames, value=T)) )
+    infects <- rowSums(output[,col_idxs])
+    infects <- infects[-1]
+    diff<-c(infects[1],diff(infects,differences = 1))
+    ret <- sum(( diff - reference )^2 )
+    return(ret)
+}
+```
+
+
+Finally, 
+```{r, eval=FALSE}
+sensitivity_analysis(n_config = 2^14,
+                     parameters_fname = "./input/Functions_list.csv",
+                     functions_fname = "./Rfunction/Functions.R",
+                     solver_fname = "./Net/Pertussis.solver",
+                     f_time = 365*21,
+                     s_time = 365,
+                     timeout = "1d",
+                     parallel_processors=40,
+                     reference_data ="./input/reference_data.csv",
+                     distance_measure_fname="./Rfunction/msqd.R",
+                     target_value_fname="./Rfunction/Select.R"
+                     )
+```
+
+
+```{r, fig.height = 4, fig.width = 6, fig.align = "center", fig.pos='H', fig.cap= "\\label{fig:PRCCPertussis} PRCCs values for the selected input parameters with respect the number of infections." , echo = F,message=FALSE}
+
+if(!file.exists("./Figures/PRCC.pdf"))
+{
+library(ggplot2)	
+load("./Results/results_sensitivity_analysis/prcc_Pertussis-sensitivity.RData")
+
+
+plt$data->data
+
+names<-c("prob_boost","prob_infectionS","prob_infectionR_l1",
+"init_S_a1","init_S_a2","init_S_a3","init_R_a1_nv_l4",
+"init_R_a2_nv_l1", "init_R_a2_nv_l2", "init_R_a2_nv_l3", "init_R_a2_nv_l4",
+ "init_R_a3_nv_l1", "init_R_a3_nv_l2", "init_R_a3_nv_l3", "init_R_a3_nv_l4")
+
+
+data<-data.frame(Time = data$Time, PRCC = data$PRCC , Param = rep(names,each=length(unique(data$Time))) )
+
+data[data$Time==21*365,]-> maxdat
+
+
+ggplot(data,aes(x=Time/365+1973))+
+	geom_line(aes(y=PRCC,group=Param,col=Param)) +
+	ylim(-1,1) +
+	scale_x_continuous(name ="Time",
+					   breaks = seq(1974,1994,2),
+					   limits =c(1974,1994))+
+	ylab("PRCC")+
+	geom_rect(
+		mapping=aes(xmin=-Inf, xmax=Inf, ymin=-.2, ymax=.2),
+		alpha=0.001961,
+		fill="yellow")+
+	scale_color_discrete(limits= names)+
+	annotate("text", x = 1973+c(19,19), y = c(1,.76), label = maxdat[order(maxdat$PRCC,decreasing = T),]$Param[1:2]  )+
+	theme(axis.text=element_text(size=18),
+		  axis.title=element_text(size=20,face="bold"),
+		  legend.text=element_text(size=18),
+		  legend.title=element_text(size=20,face="bold")) +
+	labs(y="PRCC for the infect counts", x="Years")
+
+}else{
+	knitr::include_graphics("./Figures/PRCC.pdf")
+}
+```
+
+From figure \ref{fig:PRCCPertussis} it is straightforward to argue that the *prob_infectionS* is the most important parameter affecting the *infects* behavior, followed by *prob_infectionR_l1*. Differently the *prob_boost* probability and the initial number of susceptible and recovered individuals in each age class are irrelevant with respect to the infection behavior.
+
+```{r, fig.height = 4, fig.width = 6, fig.align = "center", fig.pos='H', fig.cap= "\\label{fig:PointsPertussis} Scatter Plot showing the squared error between the real and simulated infection cases. " , echo = F, message=FALSE}
+
+library(plyr)
+library(RColorBrewer)
+library(ggplot2)
+
+if(!file.exists("./Figures/Pointsblue.pdf"))
+{
+
+ load("./Results/results_sensitivity_analysis/prcc_Pertussis-sensitivity.RData")
+ load("./Results/results_sensitivity_analysis/parms_prcc_Pertussis-sensitivity.RData")
+
+# Plot PRCC prob1= boost dopo infezione, prob2=infettare susceptible, prob3= infettare recovered in l1
+sensitivity.3 <- read.csv("./Results/results_sensitivity_analysis/Pertussis-sensitivity-3.trace", sep="")
+# Get the parameter names and the total number of parameters
+names_param=colnames(sensitivity.3)[c(1,2,3,26,27,50,51,52,74,75,76)+1]
+names_param=paste0("init_",names_param)
+names_param=c("prob_boost","prob_infectionS","prob_infectionR_l1",names_param)
+n_params = length(names_param)
+time <- 0:21
+
+
+filesAll <- list.files('.',pattern='*.trace')
+
+traceAll <- lapply(filesAll, function(x) {
+  #IDsim<- -readr::parse_number(x)
+    IDsim<- as.numeric(gsub(pattern="(.trace)", gsub(pattern="([[:graph:]]+(-){1})", x=x, replacement=""), replacement="") )
+  data.frame(read.csv(paste(x), sep="") ,ID=IDsim)
+} )
+
+dati<-ldply(traceAll, data.frame)
+indexes.s <- c( which(colnames(dati) %in% grep("Is_*", colnames(dati), value=T)) )
+indexes.p <- c( which(colnames(dati) %in% grep("Ip_*", colnames(dati), value=T)) )
+
+
+DatiPRCC<-dati[,c("Time","InfectCount_a1","InfectCount_a2","InfectCount_a3","ID")]
+ID= unique(DatiPRCC[,"ID"])
+
+dati.Infect<-lapply(ID ,function(x) {
+  dati_Infect<-DatiPRCC[which(DatiPRCC[,"ID"]==x),-c(1,5)]
+  dati_Infect<-rowSums(dati_Infect)[-1]
+  dati_Infect<-c(dati_Infect[1],diff(dati_Infect,differences = 1))
+  data.frame(Time=DatiPRCC[which(DatiPRCC[,"ID"]==x),"Time"][-1],InfectsCount=dati_Infect,IDpar=x)
+}
+)
+dati.Infect<-ldply(dati.Infect, data.frame)
+
+
+DatiPRCC.subset<-data.frame(Time=dati.Infect$Time,parms[dati.Infect[,3], ],OutPut=dati.Infect[,2])
+
+
+##### plot con gli errori
+
+reference<-c(7413,10786,18354,8076,12582,18142,14170,7335,16599,27146,11648,14607,16770,31244,8764,6183,15256,18845,6701,4279,13735)
+
+DatiPRCC<-dati[,c("Time","InfectCount_a1","InfectCount_a2","InfectCount_a3","ID")]
+ID= unique(DatiPRCC[,"ID"])
+
+
+
+dati.Infect.error<-lapply(ID ,function(x) {
+  dati_Infect<-DatiPRCC[which(DatiPRCC[,"ID"]==x),-c(1,5)]
+  dati_Infect<-rowSums(dati_Infect)[-1]
+  dati_Infect<-c(dati_Infect[1],diff(dati_Infect,differences = 1))
+  ret <- sum(( dati_Infect - reference )^2 )
+  data.frame(InfectsCount=ret,IDpar=x )
+  #data.frame(t=0:20,Infects=dati_Infect,InfectsCount=rep(ret,length(dati_Infect)),IDpar=rep(x,length(dati_Infect)) )
+}
+)
+
+dati.Infect.errors<-ldply(dati.Infect.error, data.frame)
+colnames(parms)<-names_param
+
+DatiError.subset<-data.frame(parms[dati.Infect.errors[,2], c("prob_infectionS","prob_infectionR_l1","init_S_a2") ],Error=(dati.Infect.errors[,1] - min(dati.Infect.errors[,1]))/max(dati.Infect.errors[,1])  )
+
+DatiError.subset<-DatiError.subset[order(DatiError.subset$Error,decreasing = T),]
+
+	DatiError.subset<-DatiError.subset[DatiError.subset$prob_infectionS<0.25,]
+	DatiError.subset$Error<- (DatiError.subset$Error - min(DatiError.subset$Error))/max(DatiError.subset$Error)
+	
+	ggplot(DatiError.subset,aes(x=prob_infectionS,y=prob_infectionR_l1,col=Error))+
+		geom_point(size=2.5)+
+		theme(axis.text=element_text(size=18),
+			  axis.title=element_text(size=20,face="bold"),
+			  legend.text=element_text(size=18),
+			  legend.title=element_text(size=20,face="bold")) +
+		labs(title="")+
+		scale_colour_gradientn(colours = c("black","deepskyblue2","cyan"),
+							   values= c(0,.000001,1),
+							   breaks=c(0,.999),
+							   labels=c("min","max"))
+
+
+
+}else{
+	knitr::include_graphics("./Figures/Pointsblue.pdf")
+}
+```
+
+
+In figure \ref{fig:PointsPertussis}, the squared error between the real and simulated infection cases from 1974 to 1994 are plotted  varying the *prob_infectionS* parameter (on the x-axis) and *prob_infectionR_l1*  parameter (on the y-axis). Each point is then colored according to a linear gradient function starting from  color dark blue (i.e., lower value) and moving to  color light blue (i.e., higher values). From this plot we can observe that higher squared errors are obtained when *prob_infectionS* assumes values greater than 0.09 (see light blue) or smaller than 0.06 (see the dark blue points, representing the parameters configuration with minimum error w.r.t. the  real data, when *prob_infectionS* values are between  $[0;0.1]$).
+Therefore, according to this we shrunk the search  space associated with the *prob_infectionS* parameter from $[0;0.25]$ to $[0;0.1]$ in the calibration phase.
+
+
+
+### Model Calibration {#ubsec:calibrationPertussis}
+
+The aim of this phase is to adjust the model unknown parameters to have the best fit of simulated behaviors to the real data, i.e. the reference data.
+Firstly, the function *model_calibration()* is applied on the generated deterministic process to fit its behavior to the real infection data (from 1974 to 1994) using squared error estimator via trajectory matching implemented in the function *msqd()* passed as an input parameter.
+Note that the information derived by the sensitivity analysis is exploited to reduce, where it is possible, the number of parameters to be estimated and/or their search space.
+
+```{r, eval=FALSE}
+model_calibration(parameters_fname = "./input/Functions_list.csv",
+                  functions_fname = "./Rfunction/Functions.R",
+                  solver_fname = "./Net/Pertussis.solver",
+                  f_time = 365*21,
+                  s_time = 365,
+                  reference_data = "./input/reference_data.csv",
+                  distance_measure_fname = "./Rfunction/msqd.R",
+                  # Vectors to control the optimization
+                  # init_V taken from trace id 13521
+                  ini_v = c(0.05, 0.07, 0.1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0),
+                  ub_v = c(0.25, 0.1, 0.25, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+                  lb_v = c(0, 0, 0, 1e-7, 1e-7, 1e-7, 1e-7, 1e-7, 1e-7, 1e-7,
+                  		   1e-7, 1e-7, 1e-7, 1e-7, 1e-7),
+                  ini_vector_mod = TRUE
+                  )
+```
+
+```{r, fig.height = 4, fig.width = 6, fig.align = "center", fig.pos='H', fig.cap= "\\label{fig:tracesCalibration} Model Calibration considering the deterministic model. Here a subset of the trajectories obtained from the optimization phase. The color of each trajectory depends on the squared error w.r.t. the Pertussis surveillance trend (red line). The black line is the optimal one. " , echo = F,message=FALSE}
+
+rank <- read.csv("Results/results_model_calibration/Pertussis-calibration_optim-trace.csv", header = TRUE, sep = "")
+
+
+names<-c("prob_boost","prob_infectionS","prob_infectionR_l1",
+"init_S_a1","init_S_a2","init_S_a3","init_R_a1_nv_l4",
+"init_R_a2_nv_l1", "init_R_a2_nv_l2", "init_R_a2_nv_l3", "init_R_a2_nv_l4",
+ "init_R_a3_nv_l1", "init_R_a3_nv_l2", "init_R_a3_nv_l3", "init_R_a3_nv_l4")
+
+rank <- rank[order(rank$distance,decreasing = F),]
+
+optim<-rank[1,-c(1:2)]
+colnames(optim)<-names
+bestconfig<-optim
+
+cat("Optimal configuration:\n")
+optim[1,]
+
+if(!file.exists("./Figures/model_calibration.pdf"))
+{
+	
+library(ggplot2)
+library(viridis)
+
+filter<-function(output)
+{
+    ynames <- names(output)
+    col_names <- "(InfectCount_a){1}[0-9]{1}"
+    col_idxs <- c( which(ynames %in% grep(col_names, ynames, value=T)) )
+    # Reshape the vector to a row vector
+    ret <- rowSums(output[,col_idxs])[-1]
+    ret <- c(ret[1],diff(ret, differences = 1))
+    return(ret)
+}
+
+traces <- lapply(rank$id,function(x){
+    	if(file.exists(paste0("Results/results_model_calibration/Pertussis-calibration-",x,".trace"))){
+    trace <- unlist(filter(read.csv(paste0("Results/results_model_calibration/Pertussis-calibration-",x,".trace"), sep = "")))
+    ids <- rep(x, length(trace))
+    rnk <- rep((rank$distance[which(rank$id==x)]-min(rank$distance))/max(rank$distance), length(trace))
+    trace <- data.frame(Trace=trace,id=ids, Time=1974+c(0:(length(unlist(trace))-1)), Score=1-rnk )
+    return(trace)
+	}
+})
+
+traces <- as.data.frame(do.call("rbind",traces))
+
+
+trace <- filter(read.csv(paste0("Results/results_model_calibration/Pertussis-calibration-",rank[1,]$id,".trace"), sep = ""))
+
+trace <- data.frame(Trace=trace, Time=1974+c(0:(length(unlist(trace))-1)))
+
+hyst <- read.csv("./input/reference_data_ext.csv", header = FALSE, sep = "")[1:21]
+
+hyst <- data.frame(Trace=t(as.data.frame(hyst)), Time=1974+c(0:(length(unlist(hyst))-1)))
+traces <- traces[order(traces$Score, decreasing = FALSE),]
+
+indexesToHigh<-traces[which(traces$Trace>78000),]$id
+
+summary(traces$id)->s
+moreindexes<-c(sample(1:s[5],65000),sample(s[5]:s[6],5000) )
+
+indexesTodelete<-which(traces$id %in% unique(c(indexesToHigh,moreindexes)) )
+
+plt<-ggplot()+
+    geom_line(data=traces[-indexesTodelete,],aes(y=Trace,group=id,col=1-(Score-min(Score))/(max(Score)-min(Score)),x=Time)) +
+    geom_line(data=trace,aes(y=Trace,x=Time),col="black", size = 1.2, linetype = 1) +
+    geom_line(data=hyst,aes(y=Trace,x=Time),col="orangered2", size = 1.2, linetype = 1) +
+    theme(axis.text=element_text(size=18),axis.title=element_text(size=20,face="bold"),legend.text=element_text(size=18),legend.title=element_text(size=20,face="bold"))+
+ labs(x="Years", y="Number of cases")+
+	scale_colour_gradientn("Error",
+						   colours = c("#FFFF00","#33CC33","#330066"),
+						   values= c(0,.07,1),
+						   breaks=c(0,1),
+						   labels=c("min","max"))+
+   scale_x_continuous(limits=c(1974,1994),breaks = seq(1974,1994,5) )
+
+}else{
+	knitr::include_graphics("./Figures/model_calibration.pdf")
+}
+```
+
+
+Then, starting from the parameters configuration obtained from the deterministic model calibration, that is 
+
+``r optim[1,]``
+
+the function *model_calibration()* is applied on the generated stochastic process to fit its behavior to the real infection data using Akaike Information Criterion (AIC) via trajectory matching, implemented in the R script *aic.R*.
+Let us note that the parameter search space of this second optimization step is computed from the result obtained from the previous step considering a 20\%  confidence interval around each parameter value.
+
+
+```{r, eval=FALSE}
+
+model_calibration(parameters_fname = "./input/Functions_list.csv",
+                  functions_fname = "./Rfunction/Functions.R",
+                  solver_fname = "./Net/Pertussis.solver",
+                  solver_type = "TAUG",
+                  f_time = 365*21,
+                  s_time = 365,
+                  n_run = 250,
+                  parallel_processors=40,
+                  reference_data = "./input/reference_data.csv",
+                  distance_measure_fname = "./Rfunction/aic.R",
+                  ini_v = best_run,
+                  ub_v = 1.2*best_run,
+                  lb_v = .8*best_run,
+                  ini_vector_mod = TRUE
+                  )
+```
+
+
+```{r, fig.height = 4, fig.width = 6, fig.align = "center", fig.pos='H', fig.cap= "\\label{fig:tracesCalibration2} a) 25000 trajectories (grey) over the whole time interval are reported. b) Boxplots considering the best configuration." , echo = F,message=FALSE}
+
+rank <- read.csv("Results/results_model_calibration_STOCHASTIC/Pertussis-calibration_optim-trace.csv", header = TRUE, sep = "")
+rank <- rank[order(rank$distance),]
+rank$id[1:10]->id
+
+names<-c("prob_boost","prob_infectionS","prob_infectionR_l1",
+"init_S_a1","init_S_a2","init_S_a3","init_R_a1_nv_l4",
+"init_R_a2_nv_l1", "init_R_a2_nv_l2", "init_R_a2_nv_l3", "init_R_a2_nv_l4",
+ "init_R_a3_nv_l1", "init_R_a3_nv_l2", "init_R_a3_nv_l3", "init_R_a3_nv_l4")
+
+
+optim<-rank[1,-c(1:2)]
+colnames(optim)<-names
+paste("Optimal configuration=")
+optim.stoch=optim[1,]
+optim.stoch
+
+if(!file.exists("./Figures//CalibrationStoch.pdf"))
+{
+	
+library(ggplot2)
+library(cowplot)
+
+rank <- read.csv("Results/results_model_calibration_STOCHASTIC/Pertussis-calibration_optim-trace.csv", header = TRUE, sep = "")
+rank <- rank[order(rank$distance),]
+rank$id[1:10]->id
+
+list.files("./Results/results_model_calibration_STOCHASTIC/", pattern = ".trace")-> listFile
+
+ind<-which(listFile %in% paste0("Results/results_model_calibration_STOCHASTIC/Pertussis-calibration-",id,".trace")) 
+
+n_sim <- 40
+length(listFile[ind])->n_conf
+
+trace<-lapply(listFile[ind],
+              function(x){
+                return(read.csv(x, sep = ""))
+              })
+length(trace[[1]][,1])->l
+trace <- do.call("rbind", trace)
+
+hyst <- read.csv("./input/reference_data_ext.csv", header = FALSE, sep = "")[1:21]
+hyst <- data.frame(Trace=unlist(hyst), Time=c(0:(length(unlist(hyst))-1))+1974)
+
+y_names <-names(trace)
+# Get the indexes of all infected places
+indexes.p <- c( which(y_names %in% grep("Ip_*", y_names, value=T)) )
+indexes.s <- c( which(y_names %in% grep("Is_*", y_names, value=T)) )
+indexes<-c(indexes.p,indexes.s)
+indexes.counters<-c( which(y_names %in% grep("InfectCount_*", y_names, value=T)) )
+# Get the time interval from the simulations
+time<-unique(trace[,1])
+# Compute the increments in the number of infects year by year
+infect<-lapply(0:((n_sim)*n_conf-1),
+               function(k){
+                 
+                 out<-trace[(2+k*(length(time))):(length(time)+k*length(time)),indexes.counters]
+                 infected<-rowSums(out)
+                 c(infected[1],diff(infected,differences = 1),id[as.integer(k/n_sim)+1])
+                 
+               }
+)
+
+infect2 <- do.call("rbind", infect)
+colnames(infect2) <- c(paste0("time",1:21),"ID")
+
+infect <-c(infect2[,-22])
+
+# Give an unique id to each simulation
+#sim_traces<-data.frame(Time=rep( time[-c(1)]/365+1973,n_sim*n_conf),infected=c(infect),ID=rep(1:n_sim,each=(length(time)-1) ))
+
+sim_traces<-data.frame(Time=rep( time[-c(1)]/365+1973,n_sim*n_conf ),infected=c(infect),IDconf=rep(id,each= 21*n_sim ),IDsim=rep(1:(n_conf*n_sim),each= length(time[-1])) )
+
+# PLOT 1: all traces of the same experiment, their mean value and the hystorical data
+# Comupte mean, median and the standard deviation
+stats<-lapply(id,function(k)
+{
+  infect3<-infect2[which(infect2[,"ID"]==k),-22]
+  mean<-apply(infect3,2,mean)
+  median <- apply(infect3,2,median)
+  sd<-apply(infect3,2,sd)
+  # Compute the "confidence interval" for the mean
+  up<-mean+(qnorm(.975))*sd/sqrt(n_sim)
+  lp<-mean-(qnorm(.975))*sd/sqrt(n_sim)
+  
+  data.frame(days = time[-c(1)]/365+1973,mean=mean,up=up,lp=lp,IDconf=paste(k))
+}
+)
+
+stats<-do.call("rbind", stats)
+
+Meanarea<-t(sapply(unique(stats$days), function(x){
+  minMean<- min(stats$mean[which(stats$days==x)])
+  maxMean<-max(stats$mean[which(stats$days==x)])
+  minSD<- min(stats$lp[which(stats$days==x)])
+  maxSD<-max(stats$up[which(stats$days==x)])
+  c(x,minMean,maxMean,minSD,maxSD)
+}))
+Meanarea<-as.data.frame(Meanarea)
+colnames(Meanarea)<-c("time","min","max","lp","up")
+
+summary(rank[1:10,-(1:2)])->summarySimul
+summarySimul[c(1,6),]
+
+
+pl1<-ggplot()+
+  geom_line(data = sim_traces,aes(x=Time,y=infected,group=IDsim),col="grey")+
+  geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases")) +
+  #geom_line(data = stats, aes(x=days, y=mean, col=IDconf, group=IDconf ))+
+  geom_ribbon(data=Meanarea, 
+              aes(x=time,ymin=lp,ymax=up), fill="green",col="green", alpha=.1,linetype="dashed")+
+  geom_ribbon(data=Meanarea, 
+              aes(x=time,ymin=min,ymax=max), fill="blue", alpha=.6)+
+  theme(axis.text=element_text(size=18),
+        axis.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20,face="bold"),
+        legend.position="bottom",
+        legend.key.size = unit(1.3, "cm"),
+        legend.key.width = unit(1.3,"cm") )+
+  scale_color_manual("",breaks=c("Real cases","Mean","Simulations","Standard Deviation"),labels=c("Real cases","Mean","Simulations","Standard Deviation"),values = c("red","blue","grey","green"),limits=c("Real cases","Mean","Simulations","Standard Deviation"))+
+  labs(x="Years", y="Number of cases")+
+  scale_x_continuous(limits=c(1974,1994),breaks = seq(1974,1994,5) )
+
+
+
+pl2<-ggplot()+
+  geom_boxplot(data = sim_traces[which(sim_traces$IDconf==rank[1,]$id),],aes(x=Time,y=infected,group=Time))+
+  geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases")) +
+  geom_line(data = stats[which(stats$IDconf==rank[1,]$id),], aes(x=days,y=mean, col="Mean"))+
+  theme(axis.text=element_text(size=18),
+        axis.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20,face="bold"),
+        legend.position="bottom",
+        legend.key.size = unit(1.3, "cm"),
+        legend.key.width = unit(1.3,"cm") )+
+  scale_color_manual("",breaks=c("Real cases","Mean"),labels=c("Real cases","Mean"),values = c("red","blue"),limits=c("Real cases","Mean"))+
+  labs(x="Years", y="Number of cases")+
+  scale_x_continuous(limits=c(1973,1995),breaks = seq(1974,1994,5) )
+
+plot_grid(pl1,pl2,
+          labels = c("a)", "b)"),
+          ncol = 1, nrow = 2)
+
+}else{
+	knitr::include_graphics("./Figures/CalibrationStoch.pdf")
+}
+```
+
+Figure \ref{fig:tracesCalibration2} shows trajectories (grey lines) for the 15 best parameters configurations discovered. 
+The blue area  contains the average trajectories derived for the first ten best parameter configurations, while the two green lines provide the associated confidence interval. 
+We can observe that a good approximation of the surveillance data (red line) from the 1974 to 1994 is obtained. 
+
+
+### Model Analysis
+
+
+In this last phase of our workflow the user can analyse the calibrated model to answer  specific questions and to derive new insights.
+In our case study we show a simple what-if analysis. In particular we investigate the impact of different vaccination failure probabilities  with respect to the number of infection cases. 
+The simulated time period  is from 1974 to 2016, and the pertussis vaccination program is started in 1995, with an average  vaccination coverage starts from 50\% and transitions linearly to 95\% in 8 years, [@IstatCopVacc,@Tozzi2014].
+
+In details, the *model_analysis()* function is applied by exploiting the optimal  parameters configuration derived from the calibration analysis on the stochastic model, namely *optim.stoch*.
+
+```{r, eval=FALSE}
+model_analysis(solver_fname =  "./Net/Pertussis.solver",
+               f_time = 365*43,
+               s_time = 365,
+               n_config = 1,
+               n_run = 250,
+               parallel_processors = 40,
+               solver_type = "TAUG",
+               parameters_fname = "./input/Functions_list.csv",
+               functions_fname = "./input/Functions.R",
+               ini_v = optim.stoch ,
+               ini_vector_mod = TRUE)
+
+```
+
+
+```{r, fig.height = 4, fig.width = 6, fig.align = "center", fig.pos='H', fig.cap= c("\\label{fig:prob00} 250 trajectories (grey) considering the stochastic model. The blue dashed line is the mean trend and the red one the Pertussis surveillance.","\\label{fig:prob01} Probability of vaccine failure settled to .1.","\\label{fig:prob20}  Probability of vaccine failure settled to .2.") , echo = F,message=FALSE}
+
+dirs= c("./Results/results_model_analysis_p000/","./Results/results_model_analysis_p010/","./Results/results_model_analysis_p02/")
+
+prob=c("prob00","prob01","prob02")
+
+for(i in 1:3)
+{
+	
+if(!file.exists(paste0("./Figures/",prob[i],".pdf") )){
+	
+hyst <- read.csv("./input/reference_data_ext.csv", header = FALSE, sep = "")
+
+hyst <- data.frame(Trace=unlist(hyst), Time=c(0:(length(unlist(hyst))-1))+1974)
+
+list.files("./", pattern = ".trace")-> listFile
+
+res<-lapply(listFile,function(x){
+  read.csv(x,sep="")->res
+  data.frame(res,ID=paste(x))
+  
+}
+)
+
+res <- do.call("rbind", res)
+
+res[,c("InfectCount_a1","InfectCount_a2","InfectCount_a3")] ->dati_Infect
+
+n_sim<-table(res$Time)[1]
+time<-unique(res$Time)
+
+infect<-lapply(0:(n_sim-1),
+               function(k){
+                 
+                 out<-dati_Infect[(2+k*(length(time))):(length(time)+k*length(time)),]
+                 infected<-rowSums(out)
+                 c(infected[1],diff(infected,differences = 1),k)
+                 
+               }
+)
+
+
+infect2 <- do.call("rbind", infect)
+colnames(infect2) <- c(paste0("time",1:43),"ID")
+
+infect <-c(t(infect2[,-44]))
+
+# Give an unique id to each simulation
+#sim_traces<-data.frame(Time=rep( time[-c(1)]/365+1973,n_sim*n_conf),infected=c(infect),ID=rep(1:n_sim,each=(length(time)-1) ))
+
+sim_traces<-data.frame(Time=rep( time[-c(1)]/365+1973,n_sim ),infected=infect,IDsim=rep(1:(n_sim),each= length(time[-1])) )
+
+# PLOT 1: all traces of the same experiment, their mean value and the hystorical data
+# Comupte mean, median and the standard deviation
+
+mean<-apply(infect2[,-44],2,mean)
+median <- apply(infect2[,-44],2,median)
+sd<-apply(infect2[,-44],2,sd)
+# Compute the "confidence interval" for the mean
+up<-mean+(qnorm(.975))*sd/sqrt(n_sim)
+lp<-mean-(qnorm(.975))*sd/sqrt(n_sim)
+
+stats<-data.frame(days = time[-c(1)]/365+1973,mean=mean,up=up,lp=lp)
+
+pl1<-ggplot()+
+  geom_line(data = sim_traces,aes(x=Time,y=infected,group=IDsim),col="grey")+
+  geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases")) +
+  geom_line(data = stats, aes(x=days, y=mean,col="Mean"))+
+  theme(axis.text=element_text(size=18),
+        axis.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20,face="bold"),
+        legend.position="bottom",
+        legend.key.size = unit(1.3, "cm"),
+        legend.key.width = unit(1.3,"cm") )+
+  scale_color_manual("",breaks=c("Real cases","Mean","Simulations"),labels=c("Real cases","Mean","Simulations"),values = c("red","blue","grey"),limits=c("Real cases","Mean","Simulations"))+
+  labs(x="Years", y="Number of cases")+
+  scale_x_continuous(limits=c(1974,2016),breaks = seq(1974,2016,4) )
+
+
+
+pl2<-ggplot()+
+  geom_boxplot(data = sim_traces,aes(x=Time,y=infected,group=Time))+
+  geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases")) +
+  geom_line(data = stats, aes(x=days,y=mean, col="Mean"))+
+  theme(axis.text=element_text(size=18),
+        axis.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20,face="bold"),
+        legend.position="bottom",
+        legend.key.size = unit(1.3, "cm"),
+        legend.key.width = unit(1.3,"cm") )+
+  scale_color_manual("",breaks=c("Real cases","Mean"),labels=c("Real cases","Mean"),values = c("red","blue"),limits=c("Real cases","Mean"))+
+  labs(x="Years", y="Number of cases")+
+  scale_x_continuous(limits=c(1973,2017),breaks = seq(1974,2016,4) )
+
+pl3<-ggplot()+
+  geom_boxplot(data = sim_traces,aes(x=Time,y=infected,group=Time))+
+  geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases")) +
+  geom_line(data = stats, aes(x=days,y=mean, col="Mean")) +
+  theme(axis.text=element_text(size=18),
+        axis.title=element_text(size=20,face="bold"),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20,face="bold"),
+        legend.position="bottom",
+        legend.key.size = unit(1.3, "cm"),
+        legend.key.width = unit(1.3,"cm") )+
+  scale_color_manual("",breaks=c("Real cases","Mean"),labels=c("Real cases","Mean"),values = c("red","blue"),limits=c("Real cases","Mean"))+
+  labs(x="Years", y="Number of cases")+
+  scale_x_continuous(limits=c(1993.5,2018),breaks = seq(1994,2016,4) )+
+  scale_y_continuous(limits=c(0,max(sim_traces[which(sim_traces$Time==1994),2])) )
+
+library(cowplot)
+pl<-plot_grid(pl1,pl2,pl3, labels = c("a)", "b)","c)"),
+              ncol = 1, nrow = 3)
+
+ggsave(plot = pl,filename = paste0("./Pertussis/",prob[i],".pdf"),
+       dpi = 400, width = 11.69, height = 24,device = "pdf")
+pl
+
+}
+}
+	knitr::include_graphics( paste0("./Figures/",prob[1],".pdf") )
+	knitr::include_graphics( paste0("./Figures/",prob[2],".pdf") )
+	knitr::include_graphics( paste0("./Figures/",prob[3],".pdf") )
+
+```
+
+Fig.\ref{fig:prob00} shows the decreasing of number of infection cases after the starting of the vaccination policy, with dynamics comparable with the reference data. If we add to the model a vaccination failure probability, i.e. we add a fourth probability given by  $p_v$ (see Sec.[General transitions](#Sec:generalTr), eq. \ref{FN:vaccinefailure}), then we have to modify the vector returned by the function *probability()* implemented in *Functions.R* as follows:
+```{r, eval=FALSE}
+
+probability <- function(file, x = NULL)
+{
+	load(file)
+    if( is.null(x) ){
+        x <- runif(n = length(probabilities), min=0, max=0.25)
+        x[length(x)] = 0
+    }
+    else{
+    ##### Here we add the vaccination failure probability: p_v
+        x <- c(x[c(1:3)],p_v)
+    }
+    return(matrix(x, ncol = 1))
+}
+
+```
+
+In figures \ref{fig:prob01} and \ref{fig:prob20} we show how the  number of infection cases is affected by the increasing vaccination failure probabilities from 0.1 to 0.20. We can observe that only probabilities greater than 0.10  have  an effect on the  number of infection cases.
+
+Figures \ref{fig:prob00}, \ref{fig:prob01}, and \ref{fig:prob20} show  a) 250 trajectories (grey) considering the stochastic model  over the whole time interval. The blue dashed line represents the mean trend; the red line represents the Pertussis surveillance trend. In the picture b) the boxplots over the time period are plotted, and in c) the zoom considering the last 21 years is reported.
+
+# References
+
+<div id="refs"></div>

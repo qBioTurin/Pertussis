@@ -1,0 +1,6 @@
+g;b_rates;b_rate;file='/home/docker/data/input/init_conf.RData'
+g;c_rates;c_rate;file='/home/docker/data/input/init_conf.RData'
+g;d_rates;d_rate;file='/home/docker/data/input/init_conf.RData'
+g;v_rates;v_rate_wif;file='/home/docker/data/input/init_conf.RData'
+g;probabilities;probability_wif;file='/home/docker/data/input/init_conf.RData'
+i;init;initial_marking;file='/home/docker/data/input/init_conf.RData'

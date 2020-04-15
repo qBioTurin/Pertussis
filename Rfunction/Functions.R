@@ -1,0 +1,119 @@
+b_rate<-function(file, x = NULL)
+{
+    load(file)
+    b_rates <- birth_rates
+    return(unlist(b_rates,use.names = FALSE))
+}
+
+c_rate<-function(file, x = NULL)
+{
+    load(file)
+    c_rates <- contact_matrix
+    return(matrix(unlist(c_rates), nrow = 3))
+}
+
+d_rate<-function(file, x = NULL)
+{
+    load(file)
+    d_rates <- death_rates
+    return(matrix(unlist(d_rates), nrow = 3))
+}
+
+v_rate<-function(file, x = NULL)
+{
+    load(file)
+    ExpMin <- function( lambda, mu, xi, phases, probability ) {
+        ( lambda / ( lambda + mu + xi ) ) ^ phases - probability
+    }
+    
+    v_rates<-sapply(1:length(t(vaccination_coverage)), function(x){
+        uniroot( f =ExpMin , interval = c(0,100), mu = death_rates[1,x], xi = 0.0030303, probability = t(vaccination_coverage)[x] , phases = 3 ,tol = 1e-8 )$root
+    } )
+    return(v_rates)
+}
+
+v_rate_wif<-function(file, x = NULL)
+{
+    load(file)
+    ExpMin <- function( lambda, mu, xi, phases, probability ) {
+        ( lambda / ( lambda + mu + xi ) ) ^ phases - probability
+    }
+    vaccination_coverage[vaccination_coverage>0.9] <- 0.9
+    v_rates<-sapply(1:length(t(vaccination_coverage)), function(x){
+        uniroot( f =ExpMin , interval = c(0,100), mu = death_rates[1,x], xi = 0.0030303, probability = t(vaccination_coverage)[x] , phases = 3 ,tol = 1e-8 )$root
+    } )
+    return(v_rates)
+}
+
+probability <- function(file, x = NULL)
+{
+    load(file)
+    if( is.null(x) ){
+        x <- runif(n = length(probabilities), min=0, max=0.25)
+        x[length(x)] = 0
+    }
+    else{
+        x <- c(x[c(1:3)],0)
+    }
+    return(matrix(x, ncol = 1))
+}
+
+probability_wif <- function(file, x = NULL)
+{
+    load(file)
+    if( is.null(x) ){
+        x <- runif(n = length(probabilities), min=0, max=0.25)
+        x[length(x)] = 0
+    }
+    else{
+        # x <- c(0.04965668,x[c(1:2)],0)
+        x <- c(x[c(1:3)],0.025)
+    }
+    return(matrix(x, ncol = 1))
+}
+
+initial_marking <- function(file, x = NULL)
+{
+    load(file)
+    if( is.null(x))
+    {
+        n_variables <- 3
+        x <- runif(n_variables, min=0, max=1)
+        n_a1<-sum(yini[c("S_a1", "R_a1_nv_l4")])
+        x_a1<-c(rnorm(1,
+                      x[1]*n_a1,
+                      x[1]*0.1*n_a1),
+                rnorm(1,
+                      (1-x[1])*n_a1,
+                      (1-x[1])*0.1*n_a1)
+        )
+        yini[c("S_a1", "R_a1_nv_l4")] <- x_a1
+        n_a2 <- sum(yini[c("S_a2", "R_a2_nv_l1", "R_a2_nv_l2", "R_a2_nv_l3", "R_a2_nv_l4")])
+        x_a2 <- c(rnorm(1,
+                        x[2]*n_a2,
+                        x[2]*0.1*n_a2),
+                  rnorm(4,
+                        ((1-x[2])/4)*n_a2,
+                        ((1-x[2])/4)*0.1*n_a2)
+        )
+        yini[c("S_a2", "R_a2_nv_l1", "R_a2_nv_l2", "R_a2_nv_l3", "R_a2_nv_l4")] <- x_a2
+        n_a3 <- sum(yini[c("S_a3", "R_a3_nv_l1", "R_a3_nv_l2", "R_a3_nv_l3", "R_a3_nv_l4")])
+        x_a3 <- c(rnorm(1,
+                        x[3]*n_a3,
+                        x[3]*0.1*n_a3),
+                  rnorm(4,
+                        ((1-x[3])/4)*n_a3,
+                        ((1-x[3])/4)*0.1*n_a3)
+        )
+        yini[c("S_a3", "R_a3_nv_l1", "R_a3_nv_l2", "R_a3_nv_l3", "R_a3_nv_l4")]<- x_a3
+        return(matrix(unlist(yini), ncol = 1))
+        
+    }else{
+        n_variables <- 12
+        x <- x[c((length(x)-n_variables+1):length(x))]
+        yini[c("S_a1", "R_a1_nv_l4")] <- sum(yini[c("S_a1", "R_a1_nv_l4")]) * (x[c(1:2)]/sum(x[c(1:2)]))
+        yini[c("S_a2", "R_a2_nv_l1", "R_a2_nv_l2", "R_a2_nv_l3", "R_a2_nv_l4")] <- sum(yini[c("S_a2", "R_a2_nv_l1", "R_a2_nv_l2", "R_a2_nv_l3", "R_a2_nv_l4")]) * (x[c(3:7)]/sum(x[c(3:7)]))
+        yini[c("S_a3", "R_a3_nv_l1", "R_a3_nv_l2", "R_a3_nv_l3", "R_a3_nv_l4")]<-  sum(yini[c("S_a3", "R_a3_nv_l1", "R_a3_nv_l2", "R_a3_nv_l3", "R_a3_nv_l4")]) * (x[c(8:12)]/sum(x[c(8:12)]))
+        return(matrix(unlist(yini), ncol = 1))
+    }
+}
