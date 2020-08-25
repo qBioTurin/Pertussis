@@ -394,6 +394,7 @@ double lambda(double *Value, map <string,int>& NumTrans, map <string,int>& NumPl
 			smatch m;		
 			if(regex_search(NameTrans[T],m,e))
 			{
+				std::cout << "lambda[" << NameTrans[T] << "] matches " << it -> first << std::endl;
 				
 				// Regular expression matching a primary infection transition
 				regex e1 ("(lambdaS_I){1}[s|p]{1}toIp_");

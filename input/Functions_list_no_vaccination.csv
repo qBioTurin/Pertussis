@@ -1,0 +1,6 @@
+g;b_rates;b_rate;file='/home/docker/data/input/init_conf_no_vaccination.RData'
+g;c_rates;c_rate;file='/home/docker/data/input/ContactMatrix/ContactMatrix.RDS'
+g;d_rates;d_rate;file='/home/docker/data/input/init_conf_no_vaccination.RData'
+g;v_rates;v_rate;file='/home/docker/data/input/init_conf_no_vaccination.RData'
+g;probabilities;probability;file='/home/docker/data/input/init_conf_no_vaccination.RData'
+i;init;initial_marking;file='/home/docker/data/input/init_conf_no_vaccination.RData'

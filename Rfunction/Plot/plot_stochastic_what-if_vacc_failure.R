@@ -2,7 +2,7 @@ library(ggplot2)
 library(cowplot)
 #######################
 # Configuration:
-experiment <- 2
+experiment <- 4
 folder <- paste0("~/results_model_analysis_vacc_failure_0",experiment,"/")
 fname <- "Pertussis-analysys-1.trace"
 surveillance <- "~/input/reference_data_ext.csv"

@@ -45,7 +45,7 @@ stats<-data.frame(days = time[-c(1)]/365+1973,mean=mean,up=up,lp=lp)
 
 g.boxplot<-ggplot()+
   geom_boxplot(data = sim_optim_traces,aes(x=Time,y=infected,group=Time))+
-  geom_line(data = hyst, aes(x=Time,y=Trace, col="RealInfects")) +
+  geom_line(data = hyst, aes(x=Time,y=Trace, col="RealInfects"), size=1.05) +
   geom_line(data = stats, aes(x=days,y=mean, col="Mean"))+
   labs(x="Years",y="Number of cases")+
   scale_color_manual("",
@@ -141,7 +141,7 @@ g <- ggplot()+
               aes(x=time,ymin=lp,ymax=up), fill="green",col="green", alpha=.1,linetype="dashed")+
       geom_ribbon(data=Meanarea, 
               aes(x=time,ymin=min,ymax=max), fill="blue", alpha=.6)+
-      geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases")) +
+      geom_line(data = hyst, aes(x=Time,y=Trace, col="Real cases"), size=1.05) +
       theme(axis.text=element_text(size=18),
             axis.title=element_text(size=20,face="bold"),
             legend.text=element_text(size=18),

@@ -15,7 +15,7 @@ compute <- function(x, par_1, par_2, distance_fname, out_fname, data_dir, fun, c
 
 # Script configuration
 distance_fname <- "~/Rfunction/msqd.R"
-data_dir <- "~/results_sensitivity_analysis/"
+data_dir <- "~/results_sensitivity_analysis_reduced_probability_range/"
 out_fname <- "Pertussis"
 reference <- as.data.frame(t(read.csv("~/input/reference_data.csv", header = FALSE, sep = "")))
 fun <- "sensitivity"
@@ -62,4 +62,4 @@ plt <- ggplot(data = rnk,
                          breaks=c(0,.999),
                          labels=c("min","max"))
 
-ggsave(plot = plt, filename = "~/scatterplt.pdf", device = "pdf", dpi="retina", width=8, height=6, units="in")
+ggsave(plot = plt, filename = "~/Plots/scatterplt.pdf", device = "pdf", dpi="retina", width=10, height=7.5, units="in")

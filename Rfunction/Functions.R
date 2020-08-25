@@ -37,7 +37,7 @@ v_rate_wif<-function(file, x = NULL)
     ExpMin <- function( lambda, mu, xi, phases, probability ) {
         ( lambda / ( lambda + mu + xi ) ) ^ phases - probability
     }
-    vaccination_coverage[33:length(vaccination_coverage)] <- 0.9
+    vaccination_coverage[c(33:43)] <- 0.8
     v_rates<-sapply(1:length(t(vaccination_coverage)), function(x){
         uniroot( f =ExpMin , interval = c(0,100), mu = death_rates[1,x], xi = 0.0030303, probability = t(vaccination_coverage)[x] , phases = 3 ,tol = 1e-8 )$root
     } )
@@ -54,7 +54,7 @@ probability <- function(file, x = NULL)
                0)
     }
     else{
-        x <- c(x[c(1:3)],0)
+        x <- c(x[c(1:3)],0.3)
         # x <- c(0.0008,0.00218,0.002985)
     }
     return(matrix(x, ncol = 1))
